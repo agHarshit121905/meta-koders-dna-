@@ -30,7 +30,7 @@ from tasks import TASKS
 # ── Config ────────────────────────────────────────────────────────────────────
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
 MODEL_NAME   = os.getenv("MODEL_NAME",   "Qwen/Qwen2.5-72B-Instruct")
-API_KEY      = os.getenv("HF_TOKEN") or os.getenv("API_KEY", "hf_placeholder")
+API_KEY      = os.getenv("HF_TOKEN") 
 BENCHMARK    = "crispr-guide-optimizer"
 
 # Force bundled sequences for reproducible offline runs (set OFFLINE_MODE=1)
