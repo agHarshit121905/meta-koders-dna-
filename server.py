@@ -98,7 +98,9 @@ def list_tasks():
 
 
 @app.post("/reset")
-def reset(req: ResetRequest):
+async def reset(body: Optional[ResetRequest] = None):
+    if body is None:
+        body = ResetRequest()
     try:
         env = CRISPREnv(task_name=req.task_name)
         obs = env.reset()
