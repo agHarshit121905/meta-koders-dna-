@@ -1,0 +1,160 @@
+name: "crispr-guide-optimizer"
+version: "2.0.0"
+description: >
+  AI Agent environment for CRISPR guide RNA design optimisation.
+  An agent receives real human disease-gene sequences fetched live from NCBI
+  RefSeq and must propose, rank, and defend guide RNA candidates across three
+  difficulty levels. Reward is shaped at every step using a weighted composite
+  of on-target activity (Doench 2016), specificity (Hsu 2013),
+  manufacturability, and thermodynamic folding energy (SantaLucia 1998).
+author: "OpenEnv Hackathon Team"
+license: "MIT"
+tags:
+  - bioinformatics
+  - crispr
+  - drug-discovery
+  - real-world
+  - multi-task
+
+data_sources:
+  - name: "NCBI E-utilities"
+    url: "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/"
+    type: "REST API"
+    authentication: "none (public)"
+    rate_limit: "3 requests/second"
+    offline_fallback: "src/bundled_sequences.py"
+
+observation_space:
+  type: object
+  description: "Current state visible to the agent"
+  properties:
+    gene_name:
+      type: string
+      description: "Human-readable gene name and disease association"
+    accession:
+      type: string
+      description: "NCBI RefSeq accession (e.g. NM_000546)"
+    sequence:
+      type: string
+      description: "DNA sequence of the fetched region (uppercase ACGT)"
+    region_start:
+      type: integer
+      description: "0-based start position of the fetched region"
+    region_length:
+      type: integer
+      description: "Length in base pairs of the fetched region"
+    pam:
+      type: string
+      description: "PAM motif in use (e.g. NGG, NNGRRT, TTN)"
+    step_number:
+      type: integer
+      description: "Current step within the episode"
+    max_steps:
+      type: integer
+      description: "Maximum steps allowed in this episode"
+    task_name:
+      type: string
+      description: "Active task identifier"
+    task_description:
+      type: string
+      description: "Natural-language description of what the agent must do"
+    previous_guides:
+      type: array
+      items:
+        type: object
+      description: "Scored results of guides the agent has already proposed"
+    best_score_so_far:
+      type: number
+      description: "Highest total_score achieved so far in this episode"
+    done:
+      type: boolean
+      description: "Whether the episode has terminated"
+
+action_space:
+  type: object
+  description: "Action the agent must emit each step"
+  properties:
+    guide_sequence:
+      type: string
+      description: "Exactly 20 nucleotides (A/C/G/T) — the proposed guide RNA"
+    rationale:
+      type: string
+      description: "Agent's reasoning for choosing this sequence (optional, for logging)"
+  required:
+    - guide_sequence
+
+reward_space:
+  type: object
+  properties:
+    step_reward:
+      type: number
+      minimum: -1.0
+      maximum: 1.0
+      description: "Shaped reward for this single step"
+    total_score:
+      type: number
+      minimum: 0.0
+      maximum: 1.0
+      description: "Composite guide quality score (Doench weights)"
+    on_target:
+      type: number
+      minimum: 0.0
+      maximum: 1.0
+    specificity:
+      type: number
+      minimum: 0.0
+      maximum: 1.0
+    manufacturability:
+      type: number
+      minimum: 0.0
+      maximum: 1.0
+    gc_pct:
+      type: number
+      description: "GC content percentage"
+    folding_dg:
+      type: number
+      description: "Nearest-neighbour ΔG (kcal/mol), SantaLucia 1998"
+    flags:
+      type: array
+      items:
+        type: string
+      description: "Quality warnings (low GC, homopolymer, PolIII terminator, etc.)"
+    penalty:
+      type: number
+      description: "Deductions applied (bad length, invalid bases, repeat guide)"
+    episode_score:
+      type: number
+      minimum: 0.0
+      maximum: 1.0
+      description: "Final normalised episode score (emitted when done=True)"
+
+tasks:
+  - name: "single_guide_easy"
+    difficulty: "easy"
+    max_steps: 5
+    description: >
+      Propose the best guide RNA for TP53 in a fixed 300 bp region.
+      Succeed by finding any guide with total_score >= 0.65 within 5 steps.
+    success_threshold: 0.65
+    scoring: "max total_score achieved across all steps"
+
+  - name: "ranked_panel_medium"
+    difficulty: "medium"
+    max_steps: 10
+    description: >
+      Build a panel of 5 distinct high-quality guides for BRCA1.
+      Each guide must score >= 0.60 and no two guides may share 8+ consecutive
+      nucleotides (diversity constraint). Final score = mean of top-5 unique guides.
+    success_threshold: 0.60
+    scoring: "mean of best 5 unique guides; diversity penalty for duplicates"
+
+  - name: "multi_gene_hard"
+    difficulty: "hard"
+    max_steps: 15
+    description: >
+      Design guides for three disease genes in sequence (TP53 → BRCA1 → ACE2).
+      The gene switches after 5 steps each. Agent must maintain fleet-average
+      score >= 0.70 across all three genes while avoiding off-target flags.
+      Penalised for TTTT motifs, extreme GC, strong folding (ΔG < -10).
+    success_threshold: 0.70
+    scoring: "fleet-average of best guide per gene; penalty multiplier for flags"
