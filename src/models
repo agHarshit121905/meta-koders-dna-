@@ -1,0 +1,78 @@
+"""
+OpenEnv typed models for the CRISPR Guide RNA Optimizer environment.
+All three required Pydantic models: Observation, Action, Reward.
+"""
+from __future__ import annotations
+from typing import List, Optional
+from pydantic import BaseModel, Field, field_validator
+
+
+class CRISPRObservation(BaseModel):
+    """Full observation returned by reset() and step()."""
+
+    gene_name: str = Field(..., description="Human-readable gene + disease label")
+    accession: str = Field(..., description="NCBI RefSeq accession e.g. NM_000546")
+    sequence: str = Field(..., description="DNA sequence of the fetched region (uppercase ACGT)")
+    region_start: int = Field(..., ge=0, description="0-based start position of the fetched region")
+    region_length: int = Field(..., gt=0, description="Length in bp of the fetched region")
+    pam: str = Field(default="NGG", description="PAM motif (NGG / NNGRRT / TTN)")
+    step_number: int = Field(default=0, ge=0)
+    max_steps: int = Field(..., gt=0)
+    task_name: str = Field(..., description="Active task identifier")
+    task_description: str = Field(..., description="Natural-language objective for the agent")
+    previous_guides: List[dict] = Field(default_factory=list,
+        description="Scored results of guides proposed so far this episode")
+    best_score_so_far: float = Field(default=0.0, ge=0.0, le=1.0)
+    done: bool = Field(default=False)
+
+    model_config = {"extra": "forbid"}
+
+
+class CRISPRAction(BaseModel):
+    """Action the agent emits each step."""
+
+    guide_sequence: str = Field(
+        ...,
+        min_length=20,
+        max_length=20,
+        description="Exactly 20 nucleotides (A/C/G/T only) — the proposed guide RNA",
+    )
+    rationale: Optional[str] = Field(
+        default=None,
+        description="Agent's reasoning (optional, logged but not scored)",
+    )
+
+    @field_validator("guide_sequence")
+    @classmethod
+    def validate_bases(cls, v: str) -> str:
+        v = v.upper().strip()
+        invalid = set(v) - set("ACGT")
+        if invalid:
+            raise ValueError(
+                f"guide_sequence contains invalid bases: {invalid}. Only A/C/G/T allowed."
+            )
+        return v
+
+    model_config = {"extra": "forbid"}
+
+
+class CRISPRReward(BaseModel):
+    """Reward signal returned by step()."""
+
+    step_reward: float = Field(..., ge=-1.0, le=1.0,
+        description="Shaped reward for this single step")
+    total_score: float = Field(..., ge=0.0, le=1.0,
+        description="Composite guide quality (Doench 2016 weights)")
+    on_target: float = Field(..., ge=0.0, le=1.0)
+    specificity: float = Field(..., ge=0.0, le=1.0)
+    manufacturability: float = Field(..., ge=0.0, le=1.0)
+    gc_pct: float = Field(..., ge=0.0, le=100.0)
+    folding_dg: float = Field(..., description="ΔG kcal/mol (SantaLucia 1998)")
+    flags: List[str] = Field(default_factory=list,
+        description="Quality warnings raised for this guide")
+    penalty: float = Field(default=0.0, le=0.0,
+        description="Deductions applied (bad input, repeat guide)")
+    episode_score: Optional[float] = Field(default=None, ge=0.0, le=1.0,
+        description="Final normalised episode score (non-None only when done=True)")
+
+    model_config = {"extra": "forbid"}
