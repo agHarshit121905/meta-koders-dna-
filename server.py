@@ -102,9 +102,9 @@ async def reset(body: Optional[ResetRequest] = None):
     if body is None:
         body = ResetRequest()
     try:
-        env = CRISPREnv(task_name=req.task_name)
+        env = CRISPREnv(task_name=body.task_name)
         obs = env.reset()
-        _set_env(req.session_id, env)
+        _set_env(body.session_id, env)
         return obs.model_dump()
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
