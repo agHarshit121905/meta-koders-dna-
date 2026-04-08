@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "crispr-guide-optimizer"
+version = "1.0.0"
+description = "CRISPR Guide RNA Optimizer — OpenEnv Environment"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.110.0",
+    "uvicorn>=0.29.0",
+    "httpx>=0.27.0",
+    "requests>=2.31.0",
+    "biopython>=1.83",
+    "numpy>=1.26.0",
+    "pandas>=2.2.0",
+    "matplotlib>=3.8.0",
+    "scipy>=1.12.0",
+]
+
+[project.scripts]
+serve = "server:app"
